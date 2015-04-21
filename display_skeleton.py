@@ -28,9 +28,10 @@ class DrawSkeleton(object):
         pts = mlab.points3d(self.skel_data.junction[:,0], self.skel_data.junction[:,1], self.skel_data.junction[:,2], color=(.7,0.,0.), scale_factor=.035, resolution=20)
 
 if __name__ == '__main__':
-    skeleton = SkeletonData('data/psb_skeleton/115_ckel.cg')
+    skeleton = SkeletonData('data/psb_skeleton/115_ckel.cg', True)
+    #skeleton = SkeletonData('data/chair_skeleton/115_ckel.cg', True)
     draw_skel = DrawSkeleton(skeleton)
-    draw_skel.draw_all(point_visible=False)
+    draw_skel.draw_all(point_visible=True)
     draw_skel.draw_terminal()
     draw_skel.draw_junction()
     mlab.show()
