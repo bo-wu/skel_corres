@@ -1,7 +1,9 @@
 #! /usr/bin/env python
 import os, sys
 import numpy as np
-from graph_tool import Graph, search
+import openmesh as om
+from graph_tool import Graph, search, topology
+from sklearn.neighbors import NearestNeighbors
 
 class DepthVisitor(search.DFSVisitor):
     """
@@ -38,18 +40,18 @@ class SkeletonData(object):
     """
     class to store and process skeleton data, like generated from starlab mean curvature skeleton
     """
-    def __init__(self, fname, filter_sb=False):
+    def __init__(self, fname=None, mesh_name=None, filter_sb=False):
         """
         @param filter_sb: if filter out Short Branch
         """
         if fname != None:
-            self.fname = fname
-            self.read_file(fname)
+            self.skel_name = fname
+            self.read_skel_file(fname)
             self._filter_short_branch(filter=filter_sb)
             self._parse_data()
+            self.mesh_name = mesh_name
 
-
-    def read_file(self, fname, dim=3):
+    def read_skel_file(self, fname, dim=3):
         if fname == None:
             print 'please input skeleton file name'
             sys.exit(0)
@@ -76,7 +78,7 @@ class SkeletonData(object):
 
     def _filter_short_branch(self, filter=False):
         """
-        filter out very short branches: do this maybe not right for some models,
+        filter out very short branches: do this maybe not right for some models, for models with flat part, it is right
         I will test how this effect the final matching results
         need to delete nodes, switch with the last one then delete last
         """
@@ -123,12 +125,13 @@ class SkeletonData(object):
                 temp_verts[int(v)] = temp_verts[v_num-1]
                 init_graph.remove_vertex(v, fast=True)
                 v_num -= 1
-            print ''
+            print 'deleting related edges' # already done above, just info user
             ######## new vertices and edges ########
             self.verts = temp_verts[:v_num]
             self.edges = []
             for e in init_graph.edges():
                 self.edges.append([int(e.source()), int(e.target())])
+
 
     def _parse_data(self):
         """
@@ -136,7 +139,7 @@ class SkeletonData(object):
         extract segments
         """
         if self.verts == None or self.edges == None:
-            print 'please first call read_file function'
+            print 'please first call read_skel_file function'
         else:
             self.verts = np.array(self.verts, dtype=np.float)
             self.edges = np.array(self.edges, dtype=np.int)
@@ -157,6 +160,9 @@ class SkeletonData(object):
 
             self.terminal = self.verts[terminal_index]
             self.junction = self.verts[junction_index]
+            self.terminal_index = terminal_index
+            self.junction_index = junction_index
+            self.feature_node_index = junction_index + terminal_index 
 
             """
             edge_vert_index = self.edges.flatten()
@@ -169,12 +175,46 @@ class SkeletonData(object):
             print 'skeleton edge num', self.skel_graph.num_edges()
             """
     
+    def calc_edge_length(self):
+        """
+        calc edge length and make it edge property map in graph-tool
+        """
+        vec = self.verts[self.edges[:,0]] - self.verts[self.edges[:,1]]
+        edge_length = np.sqrt(np.sum(vec**2, axis=-1))
+        self.edge_length_map = self.skel_graph.new_edge_property("double")
+        self.edge_length_map.a = edge_length
+    
+    def calc_node_centricity(self):
+        """
+        calc node centricity of feature nodes(terminal and junction nodes)
+        T1 in Oscar's EG 2010 paper
+        """
+        node_centricity = []
+        max_length = []
+        for n_idx in self.feature_node_index:
+            dist = topology.shortest_distance(self.skel_graph, self.skel_graph.vertex(n_idx))
+            node_centricity.append(dist.a.mean())
+            max_length.append(float(dist.a.max()))
+        node_centricity = np.array(node_centricity)
+        max_length = np.array(max_length)
+        self.node_centricity = node_centricity / np.max(max_length)
+
+    def calc_skel_radius(self, dim=3):
+        if self.mesh_name == None:
+            print 'please set mesh_name before calc_skel_radius'
+        elif os.path.isfile(self.mesh_name):
+            mesh = om.TriMesh()
+            assert om.read_mesh(mesh, self.mesh_name)
+            mesh_vertices = np.array((mesh.n_vertices, dim), dtype=float)
+            for vh in mesh.vertices():
+                
+
     def write_file(self, file_path='./'):
         """
         maybe need to save file after filter
         same as starlab mean curvature skeleotn
         """
-        file_name = os.path.basename(self.fname)
+        file_name = os.path.basename(self.skel_name)
         full_name = file_path + file_name
         v_num = len(self.verts)
         e_num = len(self.edges)
@@ -190,8 +230,8 @@ class SkeletonData(object):
                 f.write(line)
 
 
-
 if __name__ == '__main__':
     skeleton = SkeletonData('data/chair_skeleton/115_ckel.cg')
     skeleton.write_file()
     #print 'out degree==2', skeleton.skel_graph.vertex(5).out_degree() == 2
+

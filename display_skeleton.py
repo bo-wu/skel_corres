@@ -6,10 +6,10 @@ class DrawSkeleton(object):
     def __init__(self, skel_data):
         self.skel_data = skel_data
 
-    def draw_all(self, point_visible=False):
+    def draw_all(self, point_visible=True):
         mlab.figure(1)
         mlab.clf()
-        pts = mlab.points3d(self.skel_data.verts[:,0], self.skel_data.verts[:,1], self.skel_data.verts[:,2], scale_factor=.025, resolution=20)
+        pts = mlab.points3d(self.skel_data.verts[:,0], self.skel_data.verts[:,1], self.skel_data.verts[:,2], color=(.8,.8,0.0), scale_factor=.020, resolution=20)
         pts.mlab_source.dataset.lines = self.skel_data.edges
         pts.visible = point_visible
 
