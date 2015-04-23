@@ -24,6 +24,7 @@ class DepthVisitor(search.DFSVisitor):
 
     def discover_vertex(self, v):
         if v.out_degree() > 2:
+            self.closest_junction = int(v)
             raise search.StopSearch
         else:
             self.node_path.append(int(v))
@@ -50,6 +51,7 @@ class SkeletonData(object):
             self._filter_short_branch(filter=filter_sb)
             self._parse_data()
             self.mesh_name = mesh_name
+            self.vert_radius = None
 
     def read_skel_file(self, fname, dim=3):
         if fname == None:
@@ -75,6 +77,7 @@ class SkeletonData(object):
         else:
             print 'no such flie', fname
             sys.exit(0)
+
 
     def _filter_short_branch(self, filter=False):
         """
@@ -133,6 +136,12 @@ class SkeletonData(object):
                 self.edges.append([int(e.source()), int(e.target())])
 
 
+    def create_virtual_node(self):
+        """
+        I am planning use this function to make virtual nodes for those feature nodes
+        """
+
+
     def _parse_data(self):
         """
         extract interal points(degree>2) and endpoints(degree=1)
@@ -175,6 +184,7 @@ class SkeletonData(object):
             print 'skeleton edge num', self.skel_graph.num_edges()
             """
     
+
     def calc_edge_length(self):
         """
         calc edge length and make it edge property map in graph-tool
@@ -184,30 +194,76 @@ class SkeletonData(object):
         self.edge_length_map = self.skel_graph.new_edge_property("double")
         self.edge_length_map.a = edge_length
     
+
     def calc_node_centricity(self):
         """
         calc node centricity of feature nodes(terminal and junction nodes)
         T1 in Oscar's EG 2010 paper
         """
         node_centricity = []
-        max_length = []
         for n_idx in self.feature_node_index:
-            dist = topology.shortest_distance(self.skel_graph, self.skel_graph.vertex(n_idx))
+            dist = topology.shortest_distance(self.skel_graph, self.skel_graph.vertex(n_idx), weights=self.edge_length_map)
             node_centricity.append(dist.a.mean())
-            max_length.append(float(dist.a.max()))
+
         node_centricity = np.array(node_centricity)
-        max_length = np.array(max_length)
-        self.node_centricity = node_centricity / np.max(max_length)
+        self.node_centricity = node_centricity / np.max(node_centricity)
+
 
     def calc_skel_radius(self, dim=3):
+        """
+        calc nearest mesh vertex of skeleton vertex
+        """
         if self.mesh_name == None:
             print 'please set mesh_name before calc_skel_radius'
         elif os.path.isfile(self.mesh_name):
             mesh = om.TriMesh()
             assert om.read_mesh(mesh, self.mesh_name)
             mesh_vertices = np.array((mesh.n_vertices, dim), dtype=float)
-            for vh in mesh.vertices():
-                
+            for n, vh in enumerate(mesh.vertices()):
+                for i in xrange(3):
+                    mesh_vertices[n, i] = mesh.point(vh)[i]
+
+            nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree').fit(mesh_vertices)
+            self.vert_radius, indices = nbrs.kneighbors(self.verts)
+        else:
+            print 'cannot find mesh file', self.mesh_name                
+            sys.exit(0)
+
+
+    def calc_path_radius(self, start, end):
+        """
+        calc skeleton mean vertex radius along some segment
+        """
+        if self.vert_radius == None:
+            print 'please call calc_skel_radius function first'
+        elif start in self.feature_node_index and end in self.feature_node_index:
+            v_list, e_list = topology.shortest_path(self.skel_graph, self.skel_graph.vertex(start), self.skel_graph.vertex(end), weights=self.edge_length_map)
+            v_radius = self.vert_radius[v_list]
+            return v_radius.mean()
+        else:
+            print 'input vertex index is not feature node index'
+            return None
+    
+    def find_max_path_length(self):
+        """
+        find the max geodesic distance between feature nodes, 
+        to normalize others (make it scale invariant)
+        """
+        pass
+
+    def find_max_path_radius(self):
+        """
+        find the max mean radius(to surface mesh) to surface mesh,
+        to normalize others (make it scale invariant)
+        """
+        pass
+
+    def calc_dist_junction_node(self):
+        """
+        for each feature node, find the closest junction node except itself
+        """
+        pass
+
 
     def write_file(self, file_path='./'):
         """
@@ -228,6 +284,7 @@ class SkeletonData(object):
             for e in self.edges:
                 line = 'e ' + str(e[0]+1) + ' ' + str(e[1]+1) + '\n'
                 f.write(line)
+
 
 
 if __name__ == '__main__':
