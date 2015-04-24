@@ -140,6 +140,7 @@ class SkeletonData(object):
         """
         I am planning use this function to make virtual nodes for those feature nodes
         """
+        pass
 
 
     def _parse_data(self):
@@ -209,10 +210,13 @@ class SkeletonData(object):
         self.node_centricity = node_centricity / np.max(node_centricity)
 
 
-    def calc_skel_radius(self, dim=3):
+    def calc_skel_radius(self, mesh_name=None, dim=3):
         """
         calc nearest mesh vertex of skeleton vertex
         """
+        if mesh_name != None:
+            self.mesh_name = mesh_name
+
         if self.mesh_name == None:
             print 'please set mesh_name before calc_skel_radius'
         elif os.path.isfile(self.mesh_name):
@@ -232,10 +236,11 @@ class SkeletonData(object):
 
     def calc_path_radius(self, start, end):
         """
-        calc skeleton mean vertex radius along some segment
+        calc skeleton **mean** vertex radius along some segment
         """
         if self.vert_radius == None:
             print 'please call calc_skel_radius function first'
+            return None
         elif start in self.feature_node_index and end in self.feature_node_index:
             v_list, e_list = topology.shortest_path(self.skel_graph, self.skel_graph.vertex(start), self.skel_graph.vertex(end), weights=self.edge_length_map)
             v_radius = self.vert_radius[v_list]
@@ -244,25 +249,47 @@ class SkeletonData(object):
             print 'input vertex index is not feature node index'
             return None
     
-    def find_max_path_length(self):
-        """
-        find the max geodesic distance between feature nodes, 
-        to normalize others (make it scale invariant)
-        """
-        pass
 
-    def find_max_path_radius(self):
+    def calc_path_length_ratio(self):
         """
-        find the max mean radius(to surface mesh) to surface mesh,
-        to normalize others (make it scale invariant)
+        for each feature node pair segment, calculate path length ratio
+        normalized, to make it scale invariant
         """
-        pass
+        path_length = np.zeros((len(self.feature_node_index), len(self.feature_node_index)), dtype=float)
+        for i, n_idx in enumerate(self.feature_node_index):
+            for j, m_idx in enumerate(self.feature_node_index[i+1:], start=i+1):
+                length = topology.shortest_distance(self.skel_graph, self.skel_graph.vertex(n_idx), self.skel_graph.vertex(m_idx), weights=self.edge_length_map)
+                if length != None :
+                    path_length[i,j] = path_length[j,i] = length
+                else:
+                    print 'compute path length ratio error'
+                    return None
 
-    def calc_dist_junction_node(self):
+        ### extract path length from each feature node to junction nodes ###
+        ### Careful!! path_length MUST start from junction node
+        self.path_to_junction = path_length[:,:len(self.junction_index)]
+
+        self.path_length_ratio = path_length / path_length.max()
+        return self.path_length_ratio
+    
+
+    def calc_path_radius_ratio(self):
         """
-        for each feature node, find the closest junction node except itself
+        for each feature node pair segment, calculate path radius ratio   
+        normalized, to make it scale invariant
         """
-        pass
+        path_radius = np.zeros((len(self.feature_node_index), len(self.feature_node_index)), dtype=float)
+        for i, n_idx in enumerate(self.feature_node_index):
+            for j, m_idx in enumerate(self.feature_node_index[i+1:], start=i+1):
+                radius = self.calc_path_radius(n_idx, m_idx)
+                if radius != None :
+                    path_radius[i, j] = path_radius[j, i] = radius
+                else:
+                    print 'comptue path radius error'
+                    return None
+
+        self.path_radius_ratio = path_radius / path_radius.max()
+        return self.path_radius_ratio
 
 
     def write_file(self, file_path='./'):
