@@ -48,7 +48,7 @@ class SkeletonData(object):
         if fname != None:
             self.skel_name = fname
             self.read_skel_file(fname)
-            self._filter_short_branch(filter=filter_sb)
+            self._filter_short_branch(filter=filter_sb, short=10)
             self._parse_data()
             self.mesh_name = mesh_name
             self.vert_radius = None
@@ -79,7 +79,7 @@ class SkeletonData(object):
             sys.exit(0)
 
 
-    def _filter_short_branch(self, filter=False):
+    def _filter_short_branch(self, filter=False, short=30):
         """
         filter out very short branches: do this maybe not right for some models, for models with flat part, it is right
         I will test how this effect the final matching results
@@ -103,7 +103,7 @@ class SkeletonData(object):
             short_nodes = []
             for tn in terminal_node:
                 search.dfs_search(init_graph, tn, visitor)
-                tmp_node = visitor.get_short_branch()
+                tmp_node = visitor.get_short_branch(min_length=short)
                 visitor.reset()
                 for n in tmp_node:
                     short_nodes.append(n)
@@ -173,6 +173,7 @@ class SkeletonData(object):
             self.terminal_index = terminal_index
             self.junction_index = junction_index
             self.feature_node_index = junction_index + terminal_index 
+            self.feature_node = self.verts[self.feature_node_index]
 
             """
             edge_vert_index = self.edges.flatten()
@@ -185,8 +186,7 @@ class SkeletonData(object):
             print 'skeleton edge num', self.skel_graph.num_edges()
             """
     
-
-    def calc_edge_length(self):
+    def _calc_edge_length(self):
         """
         calc edge length and make it edge property map in graph-tool
         """
@@ -201,6 +201,7 @@ class SkeletonData(object):
         calc node centricity of feature nodes(terminal and junction nodes)
         T1 in Oscar's EG 2010 paper
         """
+        self._calc_edge_length()
         node_centricity = []
         for n_idx in self.feature_node_index:
             dist = topology.shortest_distance(self.skel_graph, self.skel_graph.vertex(n_idx), weights=self.edge_length_map)
@@ -222,7 +223,7 @@ class SkeletonData(object):
         elif os.path.isfile(self.mesh_name):
             mesh = om.TriMesh()
             assert om.read_mesh(mesh, self.mesh_name)
-            mesh_vertices = np.array((mesh.n_vertices, dim), dtype=float)
+            mesh_vertices = np.zeros((mesh.n_vertices(), dim), dtype=float)
             for n, vh in enumerate(mesh.vertices()):
                 for i in xrange(3):
                     mesh_vertices[n, i] = mesh.point(vh)[i]
@@ -236,6 +237,7 @@ class SkeletonData(object):
 
     def calc_path_radius(self, start, end):
         """
+        utile function for other function
         calc skeleton **mean** vertex radius along some segment
         """
         if self.vert_radius == None:
@@ -243,7 +245,10 @@ class SkeletonData(object):
             return None
         elif start in self.feature_node_index and end in self.feature_node_index:
             v_list, e_list = topology.shortest_path(self.skel_graph, self.skel_graph.vertex(start), self.skel_graph.vertex(end), weights=self.edge_length_map)
-            v_radius = self.vert_radius[v_list]
+            v_idx_list = []
+            for v in v_list:
+                v_idx_list.append(int(v))
+            v_radius = self.vert_radius[v_idx_list]
             return v_radius.mean()
         else:
             print 'input vertex index is not feature node index'
@@ -295,7 +300,7 @@ class SkeletonData(object):
     def write_file(self, file_path='./'):
         """
         maybe need to save file after filter
-        same as starlab mean curvature skeleotn
+        same as starlab mean curvature skeleton
         """
         file_name = os.path.basename(self.skel_name)
         full_name = file_path + file_name
