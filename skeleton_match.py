@@ -27,28 +27,60 @@ class SkeletonMatch(object):
                 if self.match_node_centricity(c1=i, c2=j, threhold=.5):
                     centricity_matched_pairs.append([i,j])
             self.centricity_matched_pairs = np.array(centricity_matched_pairs)
+
+            self.vote_tree = Graph(directed=False)
+            self.node_pair = self.vote_tree.new_vertex_property("vector<short>")
+
+            self._construct_search_tree(curr_pairs=self.centricity_matched_pairs)
         else:
             print 'need input two skeleton to match'
 
 
-    def match_skeleton(self):
+    def _construct_search_tree(self, prev_pairs=np.array([]), curr_pairs=np.array([])):
         """
-        match all related metrics
+        recursively consturct search tree
+        @param prev_pairs record that already on the path
+        @param curr_pairs record that left pairs (which pass first test)
         """
-        vote_tree = Graph(directed=False)
-        #plan to store all pairs from root util here
-        node_pair = vote_tree.new_vertex_property("vector<short>")
-        ## root for all the other nodes ##
-        v0 = vote_tree.add_vertex()
-        vote_tree.add_vertex(len(self.centricity_matched_pairs))
-        v_num = vote_tree.num_vertices()
-        #from the second node (first is root)
-        for i in xrange(1, v_num):     
-            graph_v = vote_tree.vertex(i)
-            node_pair[graph_v] = self.centricity_matched_pairs[i-1]
-            vote_tree.add_edge(v0, graph_v)
+        # root of the tree
+        if len(prev_pairs) == 0:
+            v1 = self.vote_tree.add_vertex()
+            for n, pair in enumerate(curr_pairs):
+                new_prev = pair.reshape(-1,2)  # to use len(for level one), need to change shape
+                new_curr = np.delete(curr_pairs, n, 0)
+                v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
+                if v2 != None:
+                    self.vote_tree.add_edge(v1, v2)
+            return v1
+        
+        elif len(prev_pairs) == 1:  # first level
+            v1 = self.vote_tree.add_vertex()
+            self.node_pair[v1] = prev_pairs[-1,:]
+            for n, pair in enumerate(curr_pairs):
+                new_prev = np.vstack((prev_pairs, pair))
+                new_curr = np.delete(curr_pairs, n, 0)
+                v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
+                if v2 != None:
+                    self.vote_tree.add_edge(v1, v2)
+            return v1
 
-        for 
+        elif len(prev_pairs) > 1:  # above level two
+            if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
+                if self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
+                    v1 = self.vote_tree.add_vertex()
+                    self.node_pair[v1] = prev_pairs[-1,:]
+                    for n, pair in enumerate(curr_pairs):
+                        new_prev = np.vstack((prev_pairs, pair))
+                        new_curr = np.delete(curr_pairs, n, 0)
+                        v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
+                        if v2 != None:
+                            self.vote_tree.add_edge(v1, v2)
+                    return v1
+                else:
+                    return None
+            else:
+                return None
+
 
 
     def match_node_centricity(self, c1, c2, threhold=.5):
@@ -123,12 +155,12 @@ if __name__ == '__main__':
     sskel1 = SkeletonData(fname=skel_name1, mesh_name=mesh_name1, filter_sb=True)
     sskel2 = SkeletonData(fname=skel_name2, mesh_name=mesh_name2, filter_sb=True)
     skel_match = SkeletonMatch(skel1=sskel1, skel2=sskel2)
-    skel_match.match_skeleton()
-    mlab.figure(1)
-    draw_skel1 = DrawSkeleton(sskel1)
-    draw_skel2 = DrawSkeleton(sskel2)
-    draw_skel1.draw_all(point_visible=True)
-    draw_skel1.draw_feature_node()
-    draw_skel2.draw_all(point_visible=True)
-    draw_skel2.draw_feature_node()
-    mlab.show()
+   # skel_match.match_skeleton()
+   # mlab.figure(1)
+   # draw_skel1 = DrawSkeleton(sskel1)
+   # draw_skel2 = DrawSkeleton(sskel2)
+   # draw_skel1.draw_all(point_visible=True)
+   # draw_skel1.draw_feature_node()
+   # draw_skel2.draw_all(point_visible=True)
+   # draw_skel2.draw_feature_node()
+   # mlab.show()
