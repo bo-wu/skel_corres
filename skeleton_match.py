@@ -22,7 +22,10 @@ class SkeletonMatch(object):
             # use index instead of real value
             skel1_index = np.arange(len(self.skel1.feature_node_index))
             skel2_index = np.arange(len(self.skel2.feature_node_index))
+            junc1_num = len(skel1.junction_index)
+            junc2_num = len(skel2.junction_index)
             centricity_matched_pairs = []
+            junc_pairs = []
             for i, j in itertools.product(skel1_index, skel2_index):
                 if self.match_node_centricity(c1=i, c2=j, threhold=.5):
                     centricity_matched_pairs.append([i,j])
@@ -52,7 +55,7 @@ class SkeletonMatch(object):
                 if v2 != None:
                     self.vote_tree.add_edge(v1, v2)
             return v1
-        
+
         elif len(prev_pairs) == 1:  # first level
             v1 = self.vote_tree.add_vertex()
             self.node_pair[v1] = prev_pairs[-1,:]
@@ -66,18 +69,15 @@ class SkeletonMatch(object):
 
         elif len(prev_pairs) > 1:  # above level two
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
-                if self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
-                    v1 = self.vote_tree.add_vertex()
-                    self.node_pair[v1] = prev_pairs[-1,:]
-                    for n, pair in enumerate(curr_pairs):
-                        new_prev = np.vstack((prev_pairs, pair))
-                        new_curr = np.delete(curr_pairs, n, 0)
-                        v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
-                        if v2 != None:
-                            self.vote_tree.add_edge(v1, v2)
-                    return v1
-                else:
-                    return None
+                v1 = self.vote_tree.add_vertex()
+                self.node_pair[v1] = prev_pairs[-1,:]
+                for n, pair in enumerate(curr_pairs):
+                    new_prev = np.vstack((prev_pairs, pair))
+                    new_curr = np.delete(curr_pairs, n, 0)
+                    v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
+                    if v2 != None:
+                        self.vote_tree.add_edge(v1, v2)
+                return v1
             else:
                 return None
 
@@ -122,9 +122,12 @@ class SkeletonMatch(object):
         if len(matched_pairs) > 0:
             junct1 = matched_pairs[matched_pairs[:,0] < len(self.skel1.junction_index), 0]
             junct2 = matched_pairs[matched_pairs[:,1] < len(self.skel2.junction_index), 1]
-            idx1 = np.argmin(self.skel1.path_to_junction[n1, junct1])
-            idx2 = np.argmin(self.skel2.path_to_junction[n2, junct2])
-            return [junct1[idx1], junct2[idx2]] in matched_pairs.tolist()
+            if len(junct1) < 1 or len(junct2) < 1:
+                return False
+            else:
+                idx1 = np.argmin(self.skel1.path_to_junction[n1, junct1])
+                idx2 = np.argmin(self.skel2.path_to_junction[n2, junct2])
+                return [junct1[idx1], junct2[idx2]] in matched_pairs.tolist()
         else:
             print 'none in matched_pairs'
             return False
@@ -155,6 +158,8 @@ if __name__ == '__main__':
     sskel1 = SkeletonData(fname=skel_name1, mesh_name=mesh_name1, filter_sb=True)
     sskel2 = SkeletonData(fname=skel_name2, mesh_name=mesh_name2, filter_sb=True)
     skel_match = SkeletonMatch(skel1=sskel1, skel2=sskel2)
+    print 'centricity matched pairs', skel_match.centricity_matched_pairs
+    print 'tree vertex num', skel_match.vote_tree.num_vertices()
    # skel_match.match_skeleton()
    # mlab.figure(1)
    # draw_skel1 = DrawSkeleton(sskel1)
