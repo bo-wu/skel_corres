@@ -24,45 +24,70 @@ class SkeletonMatch(object):
             skel2_index = np.arange(len(self.skel2.feature_node_index))
             junc1_num = len(skel1.junction_index)
             junc2_num = len(skel2.junction_index)
-            centricity_matched_pairs = []
-            junc_pairs = []
+            
+            #candidate matched pairs
+            junction_pairs = []
+            junc_term_pairs = []
+            terminal_pairs = []
             for i, j in itertools.product(skel1_index, skel2_index):
                 if self.match_node_centricity(c1=i, c2=j, threhold=.5):
-                    centricity_matched_pairs.append([i,j])
-            self.centricity_matched_pairs = np.array(centricity_matched_pairs)
+                    if i < junc1_num and j < junc2_num: # only junction nodes
+                        junction_pairs.append([i,j])
+                    elif i >= junc1_num and j >= junc2_num: # with junction nodes
+                        terminal_pairs.append([i,j])
+                    else:
+                        junc_term_pairs.append([i,j])
+
+            self.junction_pairs = np.array(junction_pairs)
+            self.terminal_pairs = np.array(terminal_pairs)
+            self.junc_term_pairs = np.array(junc_term_pairs)
+            self.all_junc_pairs = np.vstack((self.junction_pairs, self.junc_term_pairs))
 
             self.vote_tree = Graph(directed=False)
             self.node_pair = self.vote_tree.new_vertex_property("vector<short>")
 
-            self._construct_search_tree(curr_pairs=self.centricity_matched_pairs)
+            self._construct_search_tree()
         else:
             print 'need input two skeleton to match'
 
 
-    def _construct_search_tree(self, prev_pairs=np.array([]), curr_pairs=np.array([])):
+    def _construct_search_tree(self, prev_pairs=np.array([]), junc_pairs=np.array([]), term_pairs=np.array([])):
         """
         recursively consturct search tree
         @param prev_pairs record that already on the path
-        @param curr_pairs record that left pairs (which pass first test)
+        @param junc_pairs record that left part junction pairs (on current tree level)
+        @param term_pairs record that left terminal pairs on current tree level
         """
         # root of the tree
         if len(prev_pairs) == 0:
             v1 = self.vote_tree.add_vertex()
-            for n, pair in enumerate(curr_pairs):
+            #first level, only junction pairs (both are junction)
+            for n, pair in enumerate(self.junction_pairs):
                 new_prev = pair.reshape(-1,2)  # to use len(for level one), need to change shape
-                new_curr = np.delete(curr_pairs, n, 0)
-                v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
-                if v2 != None:
-                    self.vote_tree.add_edge(v1, v2)
+                v2 = self._construct_search_tree(prev_pairs=new_prev)
+                self.vote_tree.add_edge(v1, v2)
             return v1
 
         elif len(prev_pairs) == 1:  # first level
             v1 = self.vote_tree.add_vertex()
             self.node_pair[v1] = prev_pairs[-1,:]
-            for n, pair in enumerate(curr_pairs):
+
+            check = True
+           # curr_junc = self.all_junc_pairs.copy()
+           # counter = 0
+            for n, pair in enumerate(self.all_junc_pairs):
+                if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
+                    new_prev = np.vstack((prev_pairs, pair))
+                    check = False
+                    self._construct_search_tree(prev_pairs=new_prev, junc_pairs=)
+           #     else:
+           #         curr_junc = np.delete(curr_junc, n-counter, 0)
+           #         counter += 1
+
+            for n, pair in enumerate(self.terminal_pairs):
                 new_prev = np.vstack((prev_pairs, pair))
                 new_curr = np.delete(curr_pairs, n, 0)
-                v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
+                v2 = self._construct_search_tree(prev_pairs=new_prev, junc_pairs=)
                 if v2 != None:
                     self.vote_tree.add_edge(v1, v2)
             return v1
@@ -158,14 +183,17 @@ if __name__ == '__main__':
     sskel1 = SkeletonData(fname=skel_name1, mesh_name=mesh_name1, filter_sb=True)
     sskel2 = SkeletonData(fname=skel_name2, mesh_name=mesh_name2, filter_sb=True)
     skel_match = SkeletonMatch(skel1=sskel1, skel2=sskel2)
-    print 'centricity matched pairs', skel_match.centricity_matched_pairs
-    print 'tree vertex num', skel_match.vote_tree.num_vertices()
-   # skel_match.match_skeleton()
-   # mlab.figure(1)
-   # draw_skel1 = DrawSkeleton(sskel1)
-   # draw_skel2 = DrawSkeleton(sskel2)
-   # draw_skel1.draw_all(point_visible=True)
-   # draw_skel1.draw_feature_node()
-   # draw_skel2.draw_all(point_visible=True)
-   # draw_skel2.draw_feature_node()
-   # mlab.show()
+    print 'centricity matched junction pairs', skel_match.junction_pairs
+    print 'centricity matched terminal pairs', skel_match.terminal_pairs
+    print 'centricity matched mix pairs', skel_match.junc_term_pairs
+
+   # print 'tree vertex num', skel_match.vote_tree.num_vertices()
+
+    mlab.figure(1)
+    draw_skel1 = DrawSkeleton(sskel1)
+    draw_skel2 = DrawSkeleton(sskel2)
+    draw_skel1.draw_all(point_visible=True)
+    draw_skel1.draw_feature_node()
+    draw_skel2.draw_all(point_visible=True)
+    draw_skel2.draw_feature_node()
+    mlab.show()
