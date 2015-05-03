@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from graph_tool import Graph, util, search, topology
+from graph_tool import Graph, util, topology
 import numpy as np
 import itertools
 
@@ -9,7 +9,7 @@ class SkeletonMatch(object):
     implement Oscar's skeleton matching alogrithm in this class
     """
     def __init__(self, skel1, skel2):
-        if skel1 != None and skel2 != None :
+        if skel1 is not None and skel2 is not None :
             self.skel1 = skel1
             self.skel2 = skel2
             self.skel1.calc_node_centricity()
@@ -42,22 +42,24 @@ class SkeletonMatch(object):
             self.junction_pairs = np.array(junction_pairs)
             self.terminal_pairs = np.array(terminal_pairs)
             self.junc_term_pairs = np.array(junc_term_pairs)
-            self.all_junc_pairs = np.vstack((self.junction_pairs, self.junc_term_pairs))
+            #self.all_junc_pairs = np.vstack((self.junction_pairs, self.junc_term_pairs))
 
             self.vote_tree = Graph(directed=False)
             self.node_pair = self.vote_tree.new_vertex_property("vector<short>")
 
-            self._construct_search_tree()
+            self._construct_voting_tree()
         else:
             print 'need input two skeleton to match'
 
 
-    def _construct_search_tree(self, prev_pairs=np.array([]), junc_pairs=np.array([]), term_pairs=np.array([])):
+    def _construct_voting_tree(self, prev_pairs=np.array([]), junc_pairs=np.array([]), term_pairs=np.array([])):
         """
-        recursively consturct search tree
+        recursively consturct voting tree
         @param prev_pairs record that already on the path
         @param junc_pairs record that left part junction pairs (on current tree level)
         @param term_pairs record that left terminal pairs on current tree level
+
+        now limits: at least one junction pair
         """
         # root of the tree
         if len(prev_pairs) == 0:
@@ -65,63 +67,87 @@ class SkeletonMatch(object):
             #first level, only junction pairs (both are junction)
             for n, pair in enumerate(self.junction_pairs):
                 new_prev = pair.reshape(-1,2)  # to use len(for level one), need to change shape
-                v2 = self._construct_search_tree(prev_pairs=new_prev)
+                v2 = self._construct_voting_tree(prev_pairs=new_prev)
                 self.vote_tree.add_edge(v1, v2)
             return v1
 
         elif len(prev_pairs) == 1:  # first level
             v1 = self.vote_tree.add_vertex()
             self.node_pair[v1] = prev_pairs[-1,:]
+            """
+            priority order: junction pairs, termianl pairs, junc-term pairs
+            """
 
             check_junc = True
-           # curr_junc = self.all_junc_pairs.copy()
-           # counter = 0
-            for n, pair in enumerate(self.all_junc_pairs):
+            #curr_junc = self.all_junc_pairs.copy()
+            #counter = 0
+            #prepare for next(second) level
+            for n, pair in enumerate(self.junction_pairs):
                 if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
                     new_prev = np.vstack((prev_pairs, pair))
                     check_junc = False
-                    v2 = self._construct_search_tree(prev_pairs=new_prev)
-                    if v2 != None:
-                        self.vote_tree.add_edge(v1, v2)
+                    v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                    if v2 is not None: self.vote_tree.add_edge(v1, v2)
            #     else:
            #         curr_junc = np.delete(curr_junc, n-counter, 0)
            #         counter += 1
 
+            # it is sure that that should be some terminal_pairs
+            # but in case
+            check_term = True
             if check_junc:
                 for n, pair in enumerate(self.terminal_pairs):
                     new_prev = np.vstack((prev_pairs, pair))
-                    v2 = self._construct_search_tree(prev_pairs=new_prev)
-                    if v2 != None:
+                    check_term = False
+                    v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                    if v2 is not None:
+                        self.vote_tree.add_edge(v1, v2)
+
+            if check_junc and check_term:
+                for n, pair in enumerate(self.junc_term_pairs):
+                    new_prev = np.vstack((prev_pairs, pair))
+                    v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                    if v2 is not None:
                         self.vote_tree.add_edge(v1, v2)
 
             return v1
 
         elif len(prev_pairs) > 1:  # above level two
+            #if satisfy T2 (length and radius prune)
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                 v1 = self.vote_tree.add_vertex()
                 self.node_pair[v1] = prev_pairs[-1,:]
 
                 check_junc = True
-                for pair in self.all_junc_pairs:
+                for pair in self.junction_pairs:
                     if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
                         new_prev = np.vstack((prev_pairs, pair))
                         check_junc = False
-                        v2 = self._construct_search_tree(prev_pairs=new_prev)
-                        if v2 != None:
+                        v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                        if v2 is not None:
                             self.vote_tree.add_edge(v1, v2)
 
+                check_term = True
                 if check_junc:
                     for pair in self.terminal_pairs:
                         if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
                             new_prev = np.vstack((prev_pairs, pair))
-                            v2 = self._construct_search_tree(prev_pairs=new_prev)
-                            if v2 != None:
+                            check_term = False
+                            v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                            if v2 is not None:
+                                self.vote_tree.add_edge(v1, v2)
+
+                if check_junc and check_term:
+                    for pair in self.junc_term_pairs:
+                        if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
+                            new_prev = np.vstack((prev_pairs, pair))
+                            v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                            if v2 is not None:
                                 self.vote_tree.add_edge(v1, v2)
 
                 return v1
             else:
                 return None
-
 
 
     def match_node_centricity(self, c1, c2, threhold=.5):
@@ -147,7 +173,7 @@ class SkeletonMatch(object):
         if np.all(length_match < threhold):
             path_rad1 = self.skel1.path_radius_ratio[n1, matched_pairs[:,0]]
             path_rad2 = self.skel2.path_radius_ratio[n2, matched_pairs[:,1]]
-            radius_match = 2 * abs(path_rad1 - path_rad2) / (path_rad1 + path_rad2)
+            radius_match = abs(path_rad1 - path_rad2) / (path_rad1 + path_rad2)
             if np.all(radius_match < threhold):
                 return True
             else:
@@ -222,6 +248,10 @@ if __name__ == '__main__':
     mlab.figure(2)
     mlab.imshow(skel_match.vote_matrix)
     print skel_match.vote_matrix
+   # print 'junction_pairs', skel_match.junction_pairs
+   # print 'terminal_pairs', skel_match.terminal_pairs
+   # print 'junc-term pairs', skel_match.junc_term_pairs
+
     
     mlab.show()
                 
@@ -230,6 +260,6 @@ if __name__ == '__main__':
                # for n, pair in enumerate(curr_pairs):
                #     new_prev = np.vstack((prev_pairs, pair))
                #     new_curr = np.delete(curr_pairs, n, 0)
-               #     v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
-               #     if v2 != None:
+               #     v2 = self._construct_voting_tree(prev_pairs=new_prev, curr_pairs=new_curr)
+               #     if v2 is not None:
                #         self.vote_tree.add_edge(v1, v2)

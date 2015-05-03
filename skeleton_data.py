@@ -204,7 +204,7 @@ class SkeletonData(object):
         self._calc_edge_length()
         node_centricity = []
         for n_idx in self.feature_node_index:
-            dist = topology.shortest_distance(self.skel_graph, self.skel_graph.vertex(n_idx), weights=self.edge_length_map)
+            dist = topology.shortest_distance(self.skel_graph, source=self.skel_graph.vertex(n_idx), weights=self.edge_length_map)
             node_centricity.append(dist.a.mean())
 
         node_centricity = np.array(node_centricity)
