@@ -1,7 +1,8 @@
 #! /usr/bin/env python
-from graph_tool import Graph, util
+from graph_tool import Graph, util, search, topology
 import numpy as np
 import itertools
+
 
 class SkeletonMatch(object):
     """
@@ -72,36 +73,51 @@ class SkeletonMatch(object):
             v1 = self.vote_tree.add_vertex()
             self.node_pair[v1] = prev_pairs[-1,:]
 
-            check = True
+            check_junc = True
            # curr_junc = self.all_junc_pairs.copy()
            # counter = 0
             for n, pair in enumerate(self.all_junc_pairs):
                 if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
                     new_prev = np.vstack((prev_pairs, pair))
-                    check = False
-                    self._construct_search_tree(prev_pairs=new_prev, junc_pairs=)
+                    check_junc = False
+                    v2 = self._construct_search_tree(prev_pairs=new_prev)
+                    if v2 != None:
+                        self.vote_tree.add_edge(v1, v2)
            #     else:
            #         curr_junc = np.delete(curr_junc, n-counter, 0)
            #         counter += 1
 
-            for n, pair in enumerate(self.terminal_pairs):
-                new_prev = np.vstack((prev_pairs, pair))
-                new_curr = np.delete(curr_pairs, n, 0)
-                v2 = self._construct_search_tree(prev_pairs=new_prev, junc_pairs=)
-                if v2 != None:
-                    self.vote_tree.add_edge(v1, v2)
+            if check_junc:
+                for n, pair in enumerate(self.terminal_pairs):
+                    new_prev = np.vstack((prev_pairs, pair))
+                    v2 = self._construct_search_tree(prev_pairs=new_prev)
+                    if v2 != None:
+                        self.vote_tree.add_edge(v1, v2)
+
             return v1
 
         elif len(prev_pairs) > 1:  # above level two
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                 v1 = self.vote_tree.add_vertex()
                 self.node_pair[v1] = prev_pairs[-1,:]
-                for n, pair in enumerate(curr_pairs):
-                    new_prev = np.vstack((prev_pairs, pair))
-                    new_curr = np.delete(curr_pairs, n, 0)
-                    v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
-                    if v2 != None:
-                        self.vote_tree.add_edge(v1, v2)
+
+                check_junc = True
+                for pair in self.all_junc_pairs:
+                    if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
+                        new_prev = np.vstack((prev_pairs, pair))
+                        check_junc = False
+                        v2 = self._construct_search_tree(prev_pairs=new_prev)
+                        if v2 != None:
+                            self.vote_tree.add_edge(v1, v2)
+
+                if check_junc:
+                    for pair in self.terminal_pairs:
+                        if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
+                            new_prev = np.vstack((prev_pairs, pair))
+                            v2 = self._construct_search_tree(prev_pairs=new_prev)
+                            if v2 != None:
+                                self.vote_tree.add_edge(v1, v2)
+
                 return v1
             else:
                 return None
@@ -169,7 +185,16 @@ class SkeletonMatch(object):
         """
         use elector vote to find better correspondence
         """
-        pass
+        vote_matrix = np.zeros((len(self.skel1.feature_node_index), len(self.skel2.feature_node_index)))
+        for v in self.vote_tree.vertices():
+            if v.out_degree() < 2:
+                v_list, e_list = topology.shortest_path(self.vote_tree, self.vote_tree.vertex(0), v)
+                if len(v_list) > 4:
+                    for v in v_list[1:]:
+                        pair = self.node_pair[v]
+                        vote_matrix[pair[0], pair[1]] += 1
+        
+        self.vote_matrix = vote_matrix
 
 
 if __name__ == '__main__':
@@ -183,11 +208,8 @@ if __name__ == '__main__':
     sskel1 = SkeletonData(fname=skel_name1, mesh_name=mesh_name1, filter_sb=True)
     sskel2 = SkeletonData(fname=skel_name2, mesh_name=mesh_name2, filter_sb=True)
     skel_match = SkeletonMatch(skel1=sskel1, skel2=sskel2)
-    print 'centricity matched junction pairs', skel_match.junction_pairs
-    print 'centricity matched terminal pairs', skel_match.terminal_pairs
-    print 'centricity matched mix pairs', skel_match.junc_term_pairs
-
-   # print 'tree vertex num', skel_match.vote_tree.num_vertices()
+    print 'tree vertex num', skel_match.vote_tree.num_vertices()
+    skel_match.elector_vote()
 
     mlab.figure(1)
     draw_skel1 = DrawSkeleton(sskel1)
@@ -196,4 +218,18 @@ if __name__ == '__main__':
     draw_skel1.draw_feature_node()
     draw_skel2.draw_all(point_visible=True)
     draw_skel2.draw_feature_node()
+
+    mlab.figure(2)
+    mlab.imshow(skel_match.vote_matrix)
+    print skel_match.vote_matrix
+    
     mlab.show()
+                
+
+
+               # for n, pair in enumerate(curr_pairs):
+               #     new_prev = np.vstack((prev_pairs, pair))
+               #     new_curr = np.delete(curr_pairs, n, 0)
+               #     v2 = self._construct_search_tree(prev_pairs=new_prev, curr_pairs=new_curr)
+               #     if v2 != None:
+               #         self.vote_tree.add_edge(v1, v2)
