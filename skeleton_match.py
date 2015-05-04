@@ -73,7 +73,7 @@ class SkeletonMatch(object):
 
         elif len(prev_pairs) == 1:  # first level
             v1 = self.vote_tree.add_vertex()
-            self.node_pair[v1] = prev_pairs[-1,:]
+            self.node_pair[v1] = prev_pairs.flatten()
             """
             priority order: junction pairs, termianl pairs, junc-term pairs
             """
@@ -116,7 +116,7 @@ class SkeletonMatch(object):
             #if satisfy T2 (length and radius prune)
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]) and self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                 v1 = self.vote_tree.add_vertex()
-                self.node_pair[v1] = prev_pairs[-1,:]
+                self.node_pair[v1] = prev_pairs.flatten()
 
                 check_junc = True
                 for pair in self.junction_pairs:
@@ -215,12 +215,12 @@ class SkeletonMatch(object):
         vote_matrix = np.zeros((len(self.skel1.feature_node_index), len(self.skel2.feature_node_index)))
         for v in self.vote_tree.vertices():
             if v.out_degree() < 2:
-                v_list, e_list = topology.shortest_path(self.vote_tree, self.vote_tree.vertex(0), v)
-                if len(v_list) > 4:
-                    for v in v_list[1:]:
-                        pair = self.node_pair[v]
+                pairs = self.node_pair[v]
+                if len(pairs) >= 8:
+                    temp_pairs = pairs.a.reshape(-1,2)
+                    for pair in temp_pairs:
                         vote_matrix[pair[0], pair[1]] += 1
-        
+
         self.vote_matrix = vote_matrix
 
 
@@ -228,15 +228,16 @@ if __name__ == '__main__':
     from skeleton_data import SkeletonData
     from display_skeleton import DrawSkeleton
     from mayavi import mlab
-    skel_name1 = './data/chair_skeleton/12_ckel.cg'
-    mesh_name1 = './data/chair/12.off'
-    skel_name2 = './data/chair_skeleton/18_ckel.cg'
-    mesh_name2 = './data/chair/18.off'
+    skel_pair = [1, 2]
+    skel_name1 = './data/chair_skeleton/'+str(skel_pair[0])+'_ckel.cg'
+    mesh_name1 = './data/chair/'+str(skel_pair[0])+'.off'
+    skel_name2 = './data/chair_skeleton/'+str(skel_pair[1])+'_ckel.cg'
+    mesh_name2 = './data/chair/'+str(skel_pair[1])+'.off'
     sskel1 = SkeletonData(fname=skel_name1, mesh_name=mesh_name1, filter_sb=True)
     sskel2 = SkeletonData(fname=skel_name2, mesh_name=mesh_name2, filter_sb=True)
     skel_match = SkeletonMatch(skel1=sskel1, skel2=sskel2)
     print 'tree vertex num', skel_match.vote_tree.num_vertices()
-    #skel_match.elector_vote()
+    skel_match.elector_vote()
 
     mlab.figure(1)
     draw_skel1 = DrawSkeleton(sskel1)
@@ -246,13 +247,13 @@ if __name__ == '__main__':
     draw_skel2.draw_all(point_visible=True)
     draw_skel2.draw_feature_node()
 
-   ## mlab.figure(2)
-   ## mlab.imshow(skel_match.vote_matrix)
-   ## print skel_match.vote_matrix
+    mlab.figure(2)
+    mlab.imshow(skel_match.vote_matrix)
+    print skel_match.vote_matrix
 
-    print 'junction_pairs', skel_match.junction_pairs
-    print 'terminal_pairs', skel_match.terminal_pairs
-    print 'junc-term pairs', skel_match.junc_term_pairs
+    #print 'junction_pairs', skel_match.junction_pairs
+    #print 'terminal_pairs', skel_match.terminal_pairs
+    #print 'junc-term pairs', skel_match.junc_term_pairs
 
     
     mlab.show()
