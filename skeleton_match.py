@@ -31,7 +31,7 @@ class SkeletonMatch(object):
             junc_term_pairs = []
             terminal_pairs = []
             for i, j in itertools.product(skel1_index, skel2_index):
-                if self.match_node_centricity(c1=i, c2=j, threhold=.5):
+                if self.match_node_centricity(c1=i, c2=j, threhold=.05):
                     if i < junc1_num and j < junc2_num: # only junction nodes
                         junction_pairs.append([i,j])
                     elif i >= junc1_num and j >= junc2_num: # with junction nodes
@@ -67,6 +67,7 @@ class SkeletonMatch(object):
             #first level, only junction pairs (both are junction)
             for n, pair in enumerate(self.junction_pairs):
                 new_prev = pair.reshape(-1,2)  # to use len(for level one), need to change shape
+                print 'adding subtree', n+1, '/', len(self.junction_pairs)
                 v2 = self._construct_voting_tree(prev_pairs=new_prev)
                 self.vote_tree.add_edge(v1, v2)
             return v1
@@ -87,7 +88,8 @@ class SkeletonMatch(object):
                     new_prev = np.vstack((prev_pairs, pair))
                     check_junc = False
                     v2 = self._construct_voting_tree(prev_pairs=new_prev)
-                    if v2 is not None: self.vote_tree.add_edge(v1, v2)
+                    if v2 is not None: 
+                        self.vote_tree.add_edge(v1, v2)
            #     else:
            #         curr_junc = np.delete(curr_junc, n-counter, 0)
            #         counter += 1
@@ -228,7 +230,7 @@ if __name__ == '__main__':
     from skeleton_data import SkeletonData
     from display_skeleton import DrawSkeleton
     from mayavi import mlab
-    skel_pair = [1, 2]
+    skel_pair = [11, 14]
     skel_name1 = './data/chair_skeleton/'+str(skel_pair[0])+'_ckel.cg'
     mesh_name1 = './data/chair/'+str(skel_pair[0])+'.off'
     skel_name2 = './data/chair_skeleton/'+str(skel_pair[1])+'_ckel.cg'

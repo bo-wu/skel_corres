@@ -111,24 +111,28 @@ class SkeletonData(object):
             ## get edges on the short paths
             short_nodes = list(set(short_nodes))
             short_edges = []
-            for v in reversed(sorted(short_nodes)):
-                for ve in init_graph.vertex(v).out_edges():
-                    short_edges.append(ve)
-
-            ## delete edges first, then vertex
-            short_edges = list(set(short_edges))
-            for e in short_edges:
-                init_graph.remove_edge(e)
-
             temp_verts = self.verts_init[:]
             v_num = len(self.verts_init)
-            print 'deleting vertex',
-            for v in reversed(sorted(short_nodes)):
-                print v,
-                temp_verts[int(v)] = temp_verts[v_num-1]
-                init_graph.remove_vertex(v, fast=True)
-                v_num -= 1
-            print 'deleting related edges' # already done above, just info user
+            if len(short_nodes):
+                for v in reversed(sorted(short_nodes)):
+                    for ve in init_graph.vertex(v).out_edges():
+                        short_edges.append(ve)
+
+                ## delete edges first, then vertex
+                short_edges = list(set(short_edges))
+                for e in short_edges:
+                    init_graph.remove_edge(e)
+
+                print 'deleting vertex',
+                for v in reversed(sorted(short_nodes)):
+                    print v,
+                    temp_verts[int(v)] = temp_verts[v_num-1]
+                    init_graph.remove_vertex(v, fast=True)
+                    v_num -= 1
+                print '\ndeleting related edges' # already done above, just info user
+            else:
+                print 'no short branches'
+
             ######## new vertices and edges ########
             self.verts = temp_verts[:v_num]
             self.edges = []
