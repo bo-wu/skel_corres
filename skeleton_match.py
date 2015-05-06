@@ -203,11 +203,18 @@ class SkeletonMatch(object):
             return False
 
 
-    def match_spatial_configuration(self):
+    def match_spatial_configuration(self, n1, n2, matched_pairs):
         """
         match spatial configuration
         """
-        pass
+        skel1_vectors = self.skel1.verts[matched_pairs[-3:,0]] - self.skel1.verts[n1]
+        skel2_vecotrs = self.skel2.verts[matched_pairs[-3:,1]] - self.skel2.verts[n2]
+        u, s, v = np.linalg.svd(np.dot(skel2_vecotrs, np.linalg.inv(skel1_vectors)))
+        r = np.dot(u, v)
+        if np.linalg.det(r) == -1:
+            r *= -1.0
+        
+        u, s, v = np.linalg.svd(np.dot(skel1_vectors, np.linalg.inv(skel2_vecotrs)))
 
 
     def elector_vote(self):

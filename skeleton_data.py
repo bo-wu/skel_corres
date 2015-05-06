@@ -300,6 +300,14 @@ class SkeletonData(object):
         self.path_radius_ratio = path_radius / path_radius.max()
         return self.path_radius_ratio
 
+    
+    def normalize_pose_skeleton(self):
+        """
+        calc the pose-normalized skeleton to distinguish symmetric nodes
+        using multidimensional scaling method
+        """
+        pass
+
 
     def write_file(self, file_path='./'):
         """
