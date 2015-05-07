@@ -203,18 +203,27 @@ class SkeletonMatch(object):
             return False
 
 
-    def match_spatial_configuration(self, n1, n2, matched_pairs):
+    def match_spatial_configuration(self, n1, n2, matched_pairs, threhold=1.0):
         """
         match spatial configuration
         """
+        #need test if can be inverse
         skel1_vectors = self.skel1.verts[matched_pairs[-3:,0]] - self.skel1.verts[n1]
-        skel2_vecotrs = self.skel2.verts[matched_pairs[-3:,1]] - self.skel2.verts[n2]
-        u, s, v = np.linalg.svd(np.dot(skel2_vecotrs, np.linalg.inv(skel1_vectors)))
+        skel2_vectors = self.skel2.verts[matched_pairs[-3:,1]] - self.skel2.verts[n2]
+        a = np.dot(skel2_vectors, np.linalg.inv(skel1_vectors))
+        u, s, v = np.linalg.svd(a)
         r = np.dot(u, v)
         if np.linalg.det(r) == -1:
             r *= -1.0
+        res1 = np.linalg.norm(a-r)
+        a = np.dot(skel1_vectors, np.linalg.inv(skel2_vectors))
+        u, s, v = np.linalg.svd(a)
+        r = np.dot(u, v)
+        if np.linalg.det(r) == -1:
+            r *= -1.0
+        res2 = np.linalg.norm(a-r)
         
-        u, s, v = np.linalg.svd(np.dot(skel1_vectors, np.linalg.inv(skel2_vecotrs)))
+        return max(res1, res2) < threhold
 
 
     def elector_vote(self):
@@ -237,7 +246,8 @@ if __name__ == '__main__':
     from skeleton_data import SkeletonData
     from display_skeleton import DrawSkeleton
     from mayavi import mlab
-    skel_pair = [11, 14]
+    #skel_pair = [11, 14]
+    skel_pair = [1, 2]
     skel_name1 = './data/chair_skeleton/'+str(skel_pair[0])+'_ckel.cg'
     mesh_name1 = './data/chair/'+str(skel_pair[0])+'.off'
     skel_name2 = './data/chair_skeleton/'+str(skel_pair[1])+'_ckel.cg'
