@@ -148,6 +148,42 @@ class SkeletonMatch(object):
         elif len(prev_pairs) >= 4:
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]) and self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                 if self.match_spatial_configuration(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
+                    v1 = self.vote_tree.add_vertex()
+                    self.node_pair[v1] = prev_pairs.flatten()
+
+                    check_junc = True
+                    for pair in self.junction_pairs:
+                        if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
+                            new_prev = np.vstack((prev_pairs, pair))
+                            check_junc = False
+                            v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                            if v2 is not None:
+                                self.vote_tree.add_edge(v1, v2)
+
+                    check_term = False   # if allow mix junction and terminal
+                    if check_junc:
+                        for pair in self.terminal_pairs:
+                            if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
+                                new_prev = np.vstack((prev_pairs, pair))
+                                check_term = False
+                                v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                                if v2 is not None:
+                                    self.vote_tree.add_edge(v1, v2)
+
+                    if check_junc and check_term:
+                        for pair in self.junc_term_pairs:
+                            if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
+                                new_prev = np.vstack((prev_pairs, pair))
+                                v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                                if v2 is not None:
+                                    self.vote_tree.add_edge(v1, v2)
+
+                    return v1
+                else:
+                    return None
+            else:
+                return None
+
 
     
 
