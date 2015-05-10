@@ -4,6 +4,7 @@ import numpy as np
 import openmesh as om
 from graph_tool import Graph, search, topology
 from sklearn.neighbors import NearestNeighbors
+from sklearn import manifold
 
 class DepthVisitor(search.DFSVisitor):
     """
@@ -52,6 +53,17 @@ class SkeletonData(object):
             self._parse_data()
             self.mesh_name = mesh_name
             self.vert_radius = None
+
+    def calc_skel_properties(self):
+        """
+        calc all properties needed for matching
+        """
+        self.calc_node_centricity()
+        self.calc_skel_radius()
+        self.calc_path_length_ratio()
+        self.calc_path_radius_ratio()
+        self.normalize_skeleton()
+
 
     def read_skel_file(self, fname, dim=3):
         if fname == None:
@@ -300,13 +312,25 @@ class SkeletonData(object):
         self.path_radius_ratio = path_radius / path_radius.max()
         return self.path_radius_ratio
 
-    
-    def normalize_pose_skeleton(self):
+
+    def normalize_skeleton(self):
         """
         calc the pose-normalized skeleton to distinguish symmetric nodes
-        using multidimensional scaling method
+        using multidimensional scaling method(MDS)
         """
-        pass
+        v_num = len(self.verts)
+        geodesic_dist = np.zeros((v_num, v_num))
+        geodesic_dist_map = topology.shortest_distance(self.skel_graph, weights=self.edge_length_map)
+        for i in xrange(len(self.verts)):
+            geodesic_dist[i] = geodesic_dist_map[self.skel_graph.vertex(i)].a
+
+        mds = manifold.MDS(n_components=3, max_iter=3000, eps=1e-12, dissimilarity="precomputed", n_jobs=-2, n_init=1)
+        verts_mean = self.verts - self.verts.mean(axis=0)
+        normalized_verts = mds.fit(geodesic_dist, init=verts_mean).embedding_
+        scale = np.sqrt((verts_mean ** 2).sum()) / np.sqrt((normalized_verts ** 2).sum())
+        normalized_verts *= scale
+        self.normalized_verts = normalized_verts
+        return self.normalized_verts
 
 
     def write_file(self, file_path='./'):

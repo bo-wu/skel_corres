@@ -8,10 +8,10 @@ class DrawSkeleton(object):
         self.skel_data = skel_data
         self.program_id = np.random.randint(100, size=1)
 
-    def draw_all(self, point_visible=True):
+    def draw_all(self, point_visible=True, color=(.8,.8,.0)):
         #mlab.figure(self.program_id[0])
         #mlab.clf()
-        pts = mlab.points3d(self.skel_data.verts[:,0], self.skel_data.verts[:,1], self.skel_data.verts[:,2], color=(.8,.8,0.0), scale_factor=.020, resolution=20)
+        pts = mlab.points3d(self.skel_data.verts[:,0], self.skel_data.verts[:,1], self.skel_data.verts[:,2], color=color, scale_factor=.020, resolution=20)
         pts.mlab_source.dataset.lines = self.skel_data.edges
         pts.visible = point_visible
 
@@ -19,7 +19,7 @@ class DrawSkeleton(object):
        ## mlab.pipeline.surface(lines, color=(.8,.8,.8), line_width=8, )
 
         tube = mlab.pipeline.tube(pts, tube_radius=.01, tube_sides=20)
-        mlab.pipeline.surface(tube, color=(.8, .8, .0))
+        mlab.pipeline.surface(tube, color=color)
 
     def draw_terminal(self):
         #mlab.figure(self.program_id[0])

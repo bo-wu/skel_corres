@@ -12,14 +12,8 @@ class SkeletonMatch(object):
         if skel1 is not None and skel2 is not None :
             self.skel1 = skel1
             self.skel2 = skel2
-            self.skel1.calc_node_centricity()
-            self.skel2.calc_node_centricity()
-            self.skel1.calc_skel_radius()
-            self.skel2.calc_skel_radius()
-            self.skel1.calc_path_length_ratio()
-            self.skel2.calc_path_length_ratio()
-            self.skel1.calc_path_radius_ratio()
-            self.skel2.calc_path_radius_ratio()
+            self.skel1.calc_skel_properties()
+            self.skel2.calc_skel_properties()
             # use index instead of real value
             skel1_index = np.arange(len(self.skel1.feature_node_index))
             skel2_index = np.arange(len(self.skel2.feature_node_index))
@@ -31,7 +25,7 @@ class SkeletonMatch(object):
             junc_term_pairs = []
             terminal_pairs = []
             for i, j in itertools.product(skel1_index, skel2_index):
-                if self.match_node_centricity(c1=i, c2=j, threhold=.05):
+                if self.match_node_centricity(c1=i, c2=j, threhold=.5):
                     if i < junc1_num and j < junc2_num: # only junction nodes
                         junction_pairs.append([i,j])
                     elif i >= junc1_num and j >= junc2_num: # with junction nodes
@@ -70,7 +64,7 @@ class SkeletonMatch(object):
                 print 'adding subtree', n+1, '/', len(self.junction_pairs)
                 v2 = self._construct_voting_tree(prev_pairs=new_prev)
                 self.vote_tree.add_edge(v1, v2)
-            return v1
+            return v1                    # return the root
 
         elif len(prev_pairs) == 1:  # first level
             v1 = self.vote_tree.add_vertex()
@@ -96,7 +90,7 @@ class SkeletonMatch(object):
 
             # it is sure that that should be some terminal_pairs
             # but in case
-            check_term = False
+            check_term = False     # if allow mix junc and term 
             if check_junc:
                 for n, pair in enumerate(self.terminal_pairs):
                     new_prev = np.vstack((prev_pairs, pair))
@@ -112,9 +106,9 @@ class SkeletonMatch(object):
                     if v2 is not None:
                         self.vote_tree.add_edge(v1, v2)
 
-            return v1
+            return v1                   # return the first level of the tree
 
-        elif len(prev_pairs) > 1:  # above level two
+        elif 4 > len(prev_pairs) > 1:  # above level two
             #if satisfy T2 (length and radius prune)
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]) and self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                 v1 = self.vote_tree.add_vertex()
@@ -128,8 +122,8 @@ class SkeletonMatch(object):
                         v2 = self._construct_voting_tree(prev_pairs=new_prev)
                         if v2 is not None:
                             self.vote_tree.add_edge(v1, v2)
-
-                check_term = False
+                
+                check_term = False    # if allow mix junc and term
                 if check_junc:
                     for pair in self.terminal_pairs:
                         if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
@@ -147,10 +141,15 @@ class SkeletonMatch(object):
                             if v2 is not None:
                                 self.vote_tree.add_edge(v1, v2)
 
-                return v1
+                return v1             # return second and above level tree
             else:
-                return None
+                return None             # fail to match
+        
+        elif len(prev_pairs) >= 4:
+            if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]) and self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
+                if self.match_spatial_configuration(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
 
+    
 
     def match_node_centricity(self, c1, c2, threhold=.5):
         """
@@ -208,18 +207,18 @@ class SkeletonMatch(object):
         match spatial configuration
         """
         #need test if can be inverse
-        skel1_vectors = self.skel1.verts[matched_pairs[-3:,0]] - self.skel1.verts[n1]
-        skel2_vectors = self.skel2.verts[matched_pairs[-3:,1]] - self.skel2.verts[n2]
+        skel1_vectors = self.skel1.normalized_verts[matched_pairs[-3:,0]] - self.skel1.normalized_verts[n1]
+        skel2_vectors = self.skel2.normalized_verts[matched_pairs[-3:,1]] - self.skel2.normalized_verts[n2]
         a = np.dot(skel2_vectors, np.linalg.inv(skel1_vectors))
         u, s, v = np.linalg.svd(a)
         r = np.dot(u, v)
-        if np.linalg.det(r) == -1:
+        if np.linalg.det(r) < 0:
             r *= -1.0
         res1 = np.linalg.norm(a-r)
         a = np.dot(skel1_vectors, np.linalg.inv(skel2_vectors))
         u, s, v = np.linalg.svd(a)
         r = np.dot(u, v)
-        if np.linalg.det(r) == -1:
+        if np.linalg.det(r) < 0:
             r *= -1.0
         res2 = np.linalg.norm(a-r)
         
