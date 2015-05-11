@@ -144,9 +144,10 @@ class SkeletonMatch(object):
                 return v1             # return second and above level tree
             else:
                 return None             # fail to match
-        
+
         elif len(prev_pairs) >= 4:
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]) and self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
+                print 'len(prev_pairs) >= 4',
                 if self.match_spatial_configuration(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                     v1 = self.vote_tree.add_vertex()
                     self.node_pair[v1] = prev_pairs.flatten()
@@ -177,13 +178,13 @@ class SkeletonMatch(object):
                                 v2 = self._construct_voting_tree(prev_pairs=new_prev)
                                 if v2 is not None:
                                     self.vote_tree.add_edge(v1, v2)
-
+                    print 'succeed'
                     return v1
                 else:
+                    print 'failed'
                     return None
             else:
                 return None
-
     
 
     def match_node_centricity(self, c1, c2, threhold=.5):
@@ -237,7 +238,7 @@ class SkeletonMatch(object):
             return False
 
 
-    def match_spatial_configuration(self, n1, n2, matched_pairs, threhold=1.0):
+    def match_spatial_configuration(self, n1, n2, matched_pairs, threhold=3.0):
         """
         match spatial configuration
         """
@@ -250,6 +251,7 @@ class SkeletonMatch(object):
         if np.linalg.det(r) < 0:
             r *= -1.0
         res1 = np.linalg.norm(a-r)
+        print 'res1', res1,
         if res1 > threhold:
             return False
         else:
@@ -259,6 +261,7 @@ class SkeletonMatch(object):
             if np.linalg.det(r) < 0:
                 r *= -1.0
             res2 = np.linalg.norm(a-r)
+            print 'res2', res2,
             if res2 > threhold:
                 return False
 
