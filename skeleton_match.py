@@ -46,7 +46,7 @@ class SkeletonMatch(object):
             print 'need input two skeleton to match'
 
 
-    def _construct_voting_tree(self, prev_pairs=np.array([]), junc_pairs=np.array([]), term_pairs=np.array([])):
+    def _construct_voting_tree(self, prev_pairs=np.array([])):
         """
         recursively consturct voting tree
         @param prev_pairs record that already on the path
@@ -184,7 +184,6 @@ class SkeletonMatch(object):
             else:
                 return None
 
-
     
 
     def match_node_centricity(self, c1, c2, threhold=.5):
@@ -251,14 +250,19 @@ class SkeletonMatch(object):
         if np.linalg.det(r) < 0:
             r *= -1.0
         res1 = np.linalg.norm(a-r)
-        a = np.dot(skel1_vectors, np.linalg.inv(skel2_vectors))
-        u, s, v = np.linalg.svd(a)
-        r = np.dot(u, v)
-        if np.linalg.det(r) < 0:
-            r *= -1.0
-        res2 = np.linalg.norm(a-r)
-        
-        return max(res1, res2) < threhold
+        if res1 > threhold:
+            return False
+        else:
+            a = np.dot(skel1_vectors, np.linalg.inv(skel2_vectors))
+            u, s, v = np.linalg.svd(a)
+            r = np.dot(u, v)
+            if np.linalg.det(r) < 0:
+                r *= -1.0
+            res2 = np.linalg.norm(a-r)
+            if res2 > threhold:
+                return False
+
+        return max(res1, res2) <= threhold
 
 
     def elector_vote(self):
