@@ -324,14 +324,11 @@ class SkeletonData(object):
         for i in xrange(v_num):
             geodesic_dist[i] = geodesic_dist_map[self.skel_graph.vertex(i)].a
 
-        mds = manifold.MDS(n_components=3, max_iter=3000, eps=1e-12, dissimilarity="precomputed", n_jobs=-2, n_init=1)
+        mds = manifold.MDS(n_components=3, max_iter=500, eps=1e-4, dissimilarity="precomputed", n_jobs=-2, n_init=1)
         verts_mean = self.verts - self.verts.mean(axis=0)
         normalized_verts = mds.fit(geodesic_dist, init=verts_mean).embedding_
-        scale = np.sqrt((verts_mean ** 2).sum()) / np.sqrt((normalized_verts ** 2).sum())
-        normalized_verts *= scale
-        scale_x = max(normalized_verts[:,0]) - min(normalized_verts[:,0])
-        scale_y = max(normalized_verts[:,1]) - min(normalized_verts[:,1])
-        scale_z = max(normalized_verts[:,2]) - min(normalized_verts[:,2])
+        #scale = np.sqrt((verts_mean ** 2).sum()) / np.sqrt((normalized_verts ** 2).sum())
+        #normalized_verts *= scale
         self.normalized_verts = normalized_verts
         return self.normalized_verts
 

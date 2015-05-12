@@ -46,7 +46,7 @@ class SkeletonMatch(object):
             print 'need input two skeleton to match'
 
 
-    def _construct_voting_tree(self, prev_pairs=np.array([])):
+    def _construct_voting_tree(self, prev_pairs=np.array([]), only_terminal=False):
         """
         recursively consturct voting tree
         @param prev_pairs record that already on the path
@@ -70,7 +70,7 @@ class SkeletonMatch(object):
             v1 = self.vote_tree.add_vertex()
             self.node_pair[v1] = prev_pairs.flatten()
             """
-            priority order: junction pairs, termianl pairs, junc-term pairs
+            priority order: junction pairs, terminal pairs, junc-term pairs
             """
 
             check_junc = True
@@ -95,7 +95,7 @@ class SkeletonMatch(object):
                 for n, pair in enumerate(self.terminal_pairs):
                     new_prev = np.vstack((prev_pairs, pair))
                     check_term = False
-                    v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                    v2 = self._construct_voting_tree(prev_pairs=new_prev, only_terminal=True)
                     if v2 is not None:
                         self.vote_tree.add_edge(v1, v2)
 
@@ -129,7 +129,7 @@ class SkeletonMatch(object):
                         if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
                             new_prev = np.vstack((prev_pairs, pair))
                             check_term = False
-                            v2 = self._construct_voting_tree(prev_pairs=new_prev)
+                            v2 = self._construct_voting_tree(prev_pairs=new_prev, only_terminal=True)
                             if v2 is not None:
                                 self.vote_tree.add_edge(v1, v2)
 
@@ -238,13 +238,17 @@ class SkeletonMatch(object):
             return False
 
 
-    def match_spatial_configuration(self, n1, n2, matched_pairs, threhold=3.0):
+    def match_spatial_configuration(self, n1, n2, matched_pairs, threhold=10.0):
         """
         match spatial configuration
         """
         #need test if can be inverse
         skel1_vectors = self.skel1.normalized_verts[matched_pairs[-3:,0]] - self.skel1.normalized_verts[n1]
         skel2_vectors = self.skel2.normalized_verts[matched_pairs[-3:,1]] - self.skel2.normalized_verts[n2]
+        for i in xrange(3):
+            skel1_vectors[i] *= ( 1. / np.linalg.norm(skel1_vectors[i]) )
+            skel2_vectors[i] *= ( 1. / np.linalg.norm(skel2_vectors[i]) )
+
         a = np.dot(skel2_vectors, np.linalg.inv(skel1_vectors))
         u, s, v = np.linalg.svd(a)
         r = np.dot(u, v)
@@ -294,6 +298,14 @@ if __name__ == '__main__':
     mesh_name1 = './data/chair/'+str(skel_pair[0])+'.off'
     skel_name2 = './data/chair_skeleton/'+str(skel_pair[1])+'_ckel.cg'
     mesh_name2 = './data/chair/'+str(skel_pair[1])+'.off'
+    """
+    #skel_pair = [384, 385]
+    skel_pair = [397, 400]
+    skel_name1 = './data/psb_skeleton/'+str(skel_pair[0])+'_ckel.cg'
+    mesh_name1 = './data/psb/'+str(skel_pair[0])+'.off'
+    skel_name2 = './data/psb_skeleton/'+str(skel_pair[1])+'_ckel.cg'
+    mesh_name2 = './data/psb/'+str(skel_pair[1])+'.off'
+    """
     sskel1 = SkeletonData(fname=skel_name1, mesh_name=mesh_name1, filter_sb=True)
     sskel2 = SkeletonData(fname=skel_name2, mesh_name=mesh_name2, filter_sb=True)
     skel_match = SkeletonMatch(skel1=sskel1, skel2=sskel2)
@@ -302,13 +314,14 @@ if __name__ == '__main__':
 
     mlab.figure(1)
     draw_skel1 = DrawSkeleton(sskel1)
-    draw_skel2 = DrawSkeleton(sskel2)
     draw_skel1.draw_all(point_visible=True)
     draw_skel1.draw_feature_node()
+    mlab.figure(2)
+    draw_skel2 = DrawSkeleton(sskel2)
     draw_skel2.draw_all(point_visible=True)
     draw_skel2.draw_feature_node()
 
-    mlab.figure(2)
+    mlab.figure(3)
     mlab.imshow(skel_match.vote_matrix)
     print skel_match.vote_matrix
 
