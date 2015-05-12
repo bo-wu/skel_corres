@@ -289,7 +289,6 @@ class SkeletonMatch(object):
         use elector vote to find better correspondence
         """
         vote_matrix = np.zeros((len(self.skel1.feature_node_index), len(self.skel2.feature_node_index)))
-        final_corres = []
         for v in self.vote_tree.vertices():
             if v.out_degree() < 2:
                 pairs = self.node_pair[v]
@@ -300,12 +299,36 @@ class SkeletonMatch(object):
 
         node_num_skel1 = len(self.skel1.feature_node_index)
         node_num_skel2 = len(self.skel2.feature_node_index)
+        """
         if node_num_skel1 > node_num_skel2:
             vote_matrix = vote_matrix.T
-
-        for i in xrange(min(node_num_skel1, node_num_skel2)):
+        """
+        node_pair = np.unravel_index(vote_matrix.argmax(), vote_matrix.shape)
+        vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = -1
+        final_corres = np.array(node_pair)
+        final_corres.shape = (-1,2)
+        while len(final_corres) < min(node_num_skel1, node_num_skel2):
+            junct1 = final_corres[final_corres[:,0] < len(self.skel1.junction_index), 0]
+            junct2 = final_corres[final_corres[:,1] < len(self.skel2.junction_index), 1]
             node_pair = np.unravel_index(vote_matrix.argmax(), vote_matrix.shape)
+            if node_pair[0] not in final_corres[:,0] and node_pair[1] not in final_corres[:,1]:
+                if len(junct1) < 1 or len(junct2) < 1:
+                    print 'no junction already matched'
+                    np.vstack((final_corres, node_pair))
+                    vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = -1
+                else:
+                    idx1 = np.argmin(self.skel1.path_to_junction[node_pair[0], junct1])
+                    idx2 = np.argmin(self.skel2.path_to_junction[node_pair[1], junct2])
+                    if [junct1[idx1], junct2[idx2]] in final_corres.tolist():
+                        np.vstack((final_corres, node_pair))
+                        vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = -1
+                    else:
+                        vote_matrix[node_pair[0], node_pair[1]] = -1
+            else:
+                vote_matrix[node_pair[0], node_pair[1]] = -1
 
+
+        print final_corres
         self.vote_matrix = vote_matrix
 
 
