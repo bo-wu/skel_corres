@@ -19,7 +19,7 @@ class SkeletonMatch(object):
             skel2_index = np.arange(len(self.skel2.feature_node_index))
             junc1_num = len(skel1.junction_index)
             junc2_num = len(skel2.junction_index)
-            
+
             #candidate matched pairs
             junction_pairs = []
             junc_term_pairs = []
@@ -147,7 +147,7 @@ class SkeletonMatch(object):
 
         elif len(prev_pairs) >= 4:
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]) and self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
-                print 'len(prev_pairs) >= 4',
+                #print 'len(prev_pairs) >= 4',
                 if self.match_spatial_configuration(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                     v1 = self.vote_tree.add_vertex()
                     self.node_pair[v1] = prev_pairs.flatten()
@@ -178,10 +178,10 @@ class SkeletonMatch(object):
                                 v2 = self._construct_voting_tree(prev_pairs=new_prev)
                                 if v2 is not None:
                                     self.vote_tree.add_edge(v1, v2)
-                    print 'succeed'
+                    #print 'succeed'
                     return v1
                 else:
-                    print 'failed'
+                    #print 'failed'
                     return None
             else:
                 return None
@@ -232,6 +232,18 @@ class SkeletonMatch(object):
             else:
                 idx1 = np.argmin(self.skel1.path_to_junction[n1, junct1])
                 idx2 = np.argmin(self.skel2.path_to_junction[n2, junct2])
+                """
+                print '\n[',n1,',',n2,']', 
+                print 'nearest pair[',junct1[idx1],',', junct2[idx2],']',
+                if [junct1[idx1], junct2[idx2]] in matched_pairs.tolist():
+                    print ' IN '
+                else:
+                    print ' NOT in '
+
+                for pair in matched_pairs:
+                    print pair,
+                    #print 'pair[',junct1[idx1],',', junct2[idx2],']  not in matched_pairs', matched_pairs
+                """
                 return [junct1[idx1], junct2[idx2]] in matched_pairs.tolist()
         else:
             print 'none in matched_pairs'
@@ -255,7 +267,7 @@ class SkeletonMatch(object):
         if np.linalg.det(r) < 0:
             r *= -1.0
         res1 = np.linalg.norm(a-r)
-        print 'res1', res1,
+        #print 'res1', res1,
         if res1 > threhold:
             return False
         else:
@@ -265,7 +277,7 @@ class SkeletonMatch(object):
             if np.linalg.det(r) < 0:
                 r *= -1.0
             res2 = np.linalg.norm(a-r)
-            print 'res2', res2,
+            #print 'res2', res2,
             if res2 > threhold:
                 return False
 
@@ -277,6 +289,7 @@ class SkeletonMatch(object):
         use elector vote to find better correspondence
         """
         vote_matrix = np.zeros((len(self.skel1.feature_node_index), len(self.skel2.feature_node_index)))
+        final_corres = []
         for v in self.vote_tree.vertices():
             if v.out_degree() < 2:
                 pairs = self.node_pair[v]
@@ -284,6 +297,14 @@ class SkeletonMatch(object):
                     temp_pairs = pairs.a.reshape(-1,2)
                     for pair in temp_pairs:
                         vote_matrix[pair[0], pair[1]] += 1
+
+        node_num_skel1 = len(self.skel1.feature_node_index)
+        node_num_skel2 = len(self.skel2.feature_node_index)
+        if node_num_skel1 > node_num_skel2:
+            vote_matrix = vote_matrix.T
+
+        for i in xrange(min(node_num_skel1, node_num_skel2)):
+            node_pair = np.unravel_index(vote_matrix.argmax(), vote_matrix.shape)
 
         self.vote_matrix = vote_matrix
 
