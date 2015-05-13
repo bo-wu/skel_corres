@@ -20,6 +20,9 @@ class SkeletonMatch(object):
             junc1_num = len(skel1.junction_index)
             junc2_num = len(skel2.junction_index)
 
+            print 'skel1 normalized_verts\n', skel1.normalized_feature_verts
+            print 'skel2 normalized_verts\n', skel2.normalized_feature_verts
+
             #candidate matched pairs
             junction_pairs = []
             junc_term_pairs = []
@@ -148,9 +151,13 @@ class SkeletonMatch(object):
         elif len(prev_pairs) >= 4:
             if self.match_length_radius(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]) and self.match_topology_consistency(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                 #print 'len(prev_pairs) >= 4',
+                print 'current pairs\n', prev_pairs, 
                 if self.match_spatial_configuration(n1=prev_pairs[-1,0], n2=prev_pairs[-1,1], matched_pairs=prev_pairs[:-1]):
                     v1 = self.vote_tree.add_vertex()
                     self.node_pair[v1] = prev_pairs.flatten()
+                    print 'succeed testing spatial', '[', prev_pairs[-1,0], prev_pairs[-1,1], ']',
+                    print 'from\n',  prev_pairs[:-1]
+                    print 'current matched pairs\n', prev_pairs
 
                     check_junc = True
                     for pair in self.junction_pairs:
@@ -250,13 +257,13 @@ class SkeletonMatch(object):
             return False
 
 
-    def match_spatial_configuration(self, n1, n2, matched_pairs, threhold=10.0):
+    def match_spatial_configuration(self, n1, n2, matched_pairs, threhold=5.0):
         """
         match spatial configuration
         """
         #need test if can be inverse
-        skel1_vectors = self.skel1.normalized_verts[matched_pairs[-3:,0]] - self.skel1.normalized_verts[n1]
-        skel2_vectors = self.skel2.normalized_verts[matched_pairs[-3:,1]] - self.skel2.normalized_verts[n2]
+        skel1_vectors = self.skel1.normalized_feature_verts[matched_pairs[-3:,0]] - self.skel1.normalized_feature_verts[n1]
+        skel2_vectors = self.skel2.normalized_feature_verts[matched_pairs[-3:,1]] - self.skel2.normalized_feature_verts[n2]
         for i in xrange(3):
             skel1_vectors[i] *= ( 1. / np.linalg.norm(skel1_vectors[i]) )
             skel2_vectors[i] *= ( 1. / np.linalg.norm(skel2_vectors[i]) )
@@ -266,9 +273,11 @@ class SkeletonMatch(object):
         r = np.dot(u, v)
         if np.linalg.det(r) < 0:
             r *= -1.0
+
         res1 = np.linalg.norm(a-r)
-        #print 'res1', res1,
+        print 'res1', res1,
         if res1 > threhold:
+            print 'failed'
             return False
         else:
             a = np.dot(skel1_vectors, np.linalg.inv(skel2_vectors))
@@ -277,11 +286,14 @@ class SkeletonMatch(object):
             if np.linalg.det(r) < 0:
                 r *= -1.0
             res2 = np.linalg.norm(a-r)
-            #print 'res2', res2,
+            print 'res2', res2
             if res2 > threhold:
+                print 'failed'
                 return False
+            else:
+                print 'succeed'
+                return True
 
-        return max(res1, res2) <= threhold
 
 
     def elector_vote(self):
@@ -299,14 +311,17 @@ class SkeletonMatch(object):
 
         node_num_skel1 = len(self.skel1.feature_node_index)
         node_num_skel2 = len(self.skel2.feature_node_index)
+        self.vote_matrix = vote_matrix.copy()
+
         """
-        if node_num_skel1 > node_num_skel2:
-            vote_matrix = vote_matrix.T
-        """
+        #print 'original vote_matrix\n', vote_matrix
+        self.vote_matrix = vote_matrix.copy()
         node_pair = np.unravel_index(vote_matrix.argmax(), vote_matrix.shape)
         vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = -1
         final_corres = np.array(node_pair)
         final_corres.shape = (-1,2)
+        #print 'correspondence\n', final_corres
+        #print 'vote_matrix\n', vote_matrix
         while len(final_corres) < min(node_num_skel1, node_num_skel2):
             junct1 = final_corres[final_corres[:,0] < len(self.skel1.junction_index), 0]
             junct2 = final_corres[final_corres[:,1] < len(self.skel2.junction_index), 1]
@@ -320,16 +335,16 @@ class SkeletonMatch(object):
                     idx1 = np.argmin(self.skel1.path_to_junction[node_pair[0], junct1])
                     idx2 = np.argmin(self.skel2.path_to_junction[node_pair[1], junct2])
                     if [junct1[idx1], junct2[idx2]] in final_corres.tolist():
-                        np.vstack((final_corres, node_pair))
+                        final_corres = np.vstack((final_corres, node_pair))
                         vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = -1
+                        #print 'added correspondence\n', final_corres
+                        #print 'vote_matrix\n', vote_matrix
                     else:
                         vote_matrix[node_pair[0], node_pair[1]] = -1
             else:
                 vote_matrix[node_pair[0], node_pair[1]] = -1
 
-
-        print final_corres
-        self.vote_matrix = vote_matrix
+        """
 
 
 if __name__ == '__main__':

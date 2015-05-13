@@ -330,6 +330,7 @@ class SkeletonData(object):
         #scale = np.sqrt((verts_mean ** 2).sum()) / np.sqrt((normalized_verts ** 2).sum())
         #normalized_verts *= scale
         self.normalized_verts = normalized_verts
+        self.normalized_feature_verts = normalized_verts[self.feature_node_index]
         return self.normalized_verts
 
 
