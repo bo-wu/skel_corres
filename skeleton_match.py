@@ -52,7 +52,7 @@ class SkeletonMatch(object):
             print 'need input two skeleton to match'
 
 
-    def _construct_voting_tree(self, prev_pairs=np.array([]), only_terminal=False):
+    def _construct_voting_tree(self, prev_pairs=np.array([]), mix_junc_term=True):
         """
         recursively consturct voting tree
         @param prev_pairs record that already on the path
@@ -91,11 +91,11 @@ class SkeletonMatch(object):
 
             # it is sure that that should be some terminal_pairs
             # but in case
-            check_term = False     # if allow mix junc and term 
+            check_term = mix_junc_term # if True allow mix junc and term 
             if check_junc:
                 for n, pair in enumerate(self.terminal_pairs):
                     new_prev = np.vstack((prev_pairs, pair))
-                    v2 = self._construct_voting_tree(prev_pairs=new_prev, only_terminal=True)
+                    v2 = self._construct_voting_tree(prev_pairs=new_prev, mix_junc_term=True)
                     if v2 is not None:
                         check_term = False
                         self.vote_tree.add_edge(v1, v2)
@@ -124,12 +124,12 @@ class SkeletonMatch(object):
                             check_junc = False
                             self.vote_tree.add_edge(v1, v2)
                 
-                check_term = False    # if allow mix junc and term
+                check_term = mix_junc_term   # if allow mix junc and term
                 if check_junc:
                     for pair in self.terminal_pairs:
                         if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
                             new_prev = np.vstack((prev_pairs, pair))
-                            v2 = self._construct_voting_tree(prev_pairs=new_prev, only_terminal=True)
+                            v2 = self._construct_voting_tree(prev_pairs=new_prev, mix_junc_term=True)
                             if v2 is not None:
                                 check_term = False
                                 self.vote_tree.add_edge(v1, v2)
@@ -166,7 +166,7 @@ class SkeletonMatch(object):
                                 check_junc = False
                                 self.vote_tree.add_edge(v1, v2)
 
-                    check_term = False   # if allow mix junction and terminal
+                    check_term = mix_junc_term # if True allow mix junction and terminal
                     if check_junc:
                         for pair in self.terminal_pairs:
                             if pair[0] not in prev_pairs[:,0] and pair[1] not in prev_pairs[:,1]:
@@ -263,9 +263,13 @@ class SkeletonMatch(object):
         #need test if can be inverse
         skel1_vectors = self.skel1.normalized_feature_verts[matched_pairs[-3:,0]] - self.skel1.normalized_feature_verts[n1]
         skel2_vectors = self.skel2.normalized_feature_verts[matched_pairs[-3:,1]] - self.skel2.normalized_feature_verts[n2]
+        #skel1_vectors = self.skel1.feature_node[matched_pairs[-3:,0]] - self.skel1.feature_node[n1]
+        #skel2_vectors = self.skel2.feature_node[matched_pairs[-3:,1]] - self.skel2.feature_node[n2]
+        """
         for i in xrange(3):
             skel1_vectors[i] *= ( 1. / np.linalg.norm(skel1_vectors[i]) )
             skel2_vectors[i] *= ( 1. / np.linalg.norm(skel2_vectors[i]) )
+        """
 
         a = np.dot(skel2_vectors, np.linalg.inv(skel1_vectors))
         u, s, v = np.linalg.svd(a)
@@ -310,38 +314,41 @@ class SkeletonMatch(object):
         node_num_skel2 = len(self.skel2.feature_node_index)
         self.vote_matrix = vote_matrix.copy()
 
-
+        
         #print 'original vote_matrix\n', vote_matrix
-        node_pair = np.unravel_index(vote_matrix.argmax(), vote_matrix.shape)
-        vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = 0
-        final_corres = np.array(node_pair)
-        final_corres.shape = (-1,2)
-        #print 'correspondence\n', final_corres
-        #print 'vote_matrix\n', vote_matrix
-        while len(final_corres) < min(node_num_skel1, node_num_skel2):
-            junct1 = final_corres[final_corres[:,0] < len(self.skel1.junction_index), 0]
-            junct2 = final_corres[final_corres[:,1] < len(self.skel2.junction_index), 1]
+        if np.max(vote_matrix) == 0:
+            final_corres = np.array([])
+        else:
             node_pair = np.unravel_index(vote_matrix.argmax(), vote_matrix.shape)
-            if node_pair[0] not in final_corres[:,0] and node_pair[1] not in final_corres[:,1]:
-                if len(junct1) < 3 or len(junct2) < 3:
-                    print 'less than 3 junction matched'
-                    final_corres = np.vstack((final_corres, node_pair))
-                    vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = 0
-                else:
-                    idx1 = np.argmin(self.skel1.path_to_junction[node_pair[0], junct1])
-                    idx2 = np.argmin(self.skel2.path_to_junction[node_pair[1], junct2])
-                    if [junct1[idx1], junct2[idx2]] in final_corres.tolist():
+            vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = 0
+            final_corres = np.array(node_pair)
+            final_corres.shape = (-1,2)
+            #print 'correspondence\n', final_corres
+            #print 'vote_matrix\n', vote_matrix
+            while len(final_corres) < min(node_num_skel1, node_num_skel2):
+                junct1 = final_corres[final_corres[:,0] < len(self.skel1.junction_index), 0]
+                junct2 = final_corres[final_corres[:,1] < len(self.skel2.junction_index), 1]
+                node_pair = np.unravel_index(vote_matrix.argmax(), vote_matrix.shape)
+                if node_pair[0] not in final_corres[:,0] and node_pair[1] not in final_corres[:,1]:
+                    if len(junct1) < 3 or len(junct2) < 3:
+                        print 'less than 3 junction matched'
                         final_corres = np.vstack((final_corres, node_pair))
                         vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = 0
-                        #print 'added correspondence\n', final_corres
-                        #print 'vote_matrix\n', vote_matrix
                     else:
-                        vote_matrix[node_pair[0], node_pair[1]] = 0
-            else:
-                vote_matrix[node_pair[0], node_pair[1]] = 0
+                        idx1 = np.argmin(self.skel1.path_to_junction[node_pair[0], junct1])
+                        idx2 = np.argmin(self.skel2.path_to_junction[node_pair[1], junct2])
+                        if [junct1[idx1], junct2[idx2]] in final_corres.tolist():
+                            final_corres = np.vstack((final_corres, node_pair))
+                            vote_matrix[node_pair[0], :] = vote_matrix[:, node_pair[1]] = 0
+                            #print 'added correspondence\n', final_corres
+                            #print 'vote_matrix\n', vote_matrix
+                        else:
+                            vote_matrix[node_pair[0], node_pair[1]] = 0
+                else:
+                    vote_matrix[node_pair[0], node_pair[1]] = 0
 
-            if np.all(vote_matrix == 0):
-                break
+                if np.all(vote_matrix == 0):
+                    break
 
         self.final_corres = final_corres
 
@@ -349,19 +356,19 @@ class SkeletonMatch(object):
 if __name__ == '__main__':
     from skeleton_data import SkeletonData
     #skel_pair = [11, 14]
-    """
-    skel_pair = [1, 2]
+    skel_pair = [105, 126]
     skel_name1 = './data/chair_skeleton/'+str(skel_pair[0])+'_ckel.cg'
     mesh_name1 = './data/chair/'+str(skel_pair[0])+'.off'
     skel_name2 = './data/chair_skeleton/'+str(skel_pair[1])+'_ckel.cg'
     mesh_name2 = './data/chair/'+str(skel_pair[1])+'.off'
     """
-    skel_pair = [394, 398]
-    #skel_pair = [105, 111]
+    #skel_pair = [381, 399]
+    skel_pair = [105, 111]
     skel_name1 = './data/psb_skeleton/'+str(skel_pair[0])+'_ckel.cg'
     mesh_name1 = './data/psb/'+str(skel_pair[0])+'.off'
     skel_name2 = './data/psb_skeleton/'+str(skel_pair[1])+'_ckel.cg'
     mesh_name2 = './data/psb/'+str(skel_pair[1])+'.off'
+    """
 
     sskel1 = SkeletonData(fname=skel_name1, mesh_name=mesh_name1, filter_sb=True)
     sskel2 = SkeletonData(fname=skel_name2, mesh_name=mesh_name2, filter_sb=True)
@@ -379,11 +386,11 @@ if __name__ == '__main__':
 
     from mayavi import mlab
     from display_skeleton import DrawSkeleton
-    mlab.figure(1)
+    mlab.figure(1, size=(800,600))
     draw_skel1 = DrawSkeleton(sskel1)
     draw_skel1.draw_all(point_visible=True)
     draw_skel1.draw_feature_node()
-    mlab.figure(2)
+    mlab.figure(2, size=(800,600))
     draw_skel2 = DrawSkeleton(sskel2)
     draw_skel2.draw_all(point_visible=True)
     draw_skel2.draw_feature_node()
